@@ -175,7 +175,7 @@ void run() {
 	- 获取feature_id
 	- 根据feature_id从feature_cache_中获取段落的特征编号
 	- rebuild的作用就是遍历段落的每一行，构建网格
-	  file:./images/node.png
+	  [[./images/node.png]]
 	- 节点对应这unigram，边对应着bigram
 	- 似乎所有的边对应的特征都是一个，B
 	- 每个Node都有两个vector,lpath和rpath,分别指向对应的路径
@@ -241,7 +241,7 @@ void Node::calcAlpha() {
 	  + 定义M[p][q]=exp(Node[i][q])*exp(Path[p][q]),就相当于从状态p到状态q的概率。
 	  + 定义 $\alpha_{i}[j]$ 为i位置，y_{i}=j的前向概率
 	    - 计算如图所示
-	    - file:./images/alpha.png
+	    - [[./images/alpha.png]]
 	    - 
 	  + 这里又有一个trick。每个节点保存的Node[i][j].alpha=log(\alpha)
 	    - 这样做的原因猜测是为了方便计算，因为看上图乘的概率都是exp格式的，用exp表示可以方便转化成加法

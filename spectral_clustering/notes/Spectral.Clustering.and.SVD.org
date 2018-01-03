@@ -54,19 +54,19 @@
     9. $UU^{T}=I,V^{T}V=I$
     10. $A=U\Sigma V^{T}$
 *** 胖瘦SVD
-    file:./images/svd2.jpg
-    file:./images/svd1.jpg
+    [[./images/svd2.jpg]]
+    [[./images/svd1.jpg]]
 *** 对称阵的SVD分解
     1. $Av_{i}=\lambda v_{i}$
     2. $A^{T}Av_{i}=AAv_{i}=A\lambda v_{i}=\lambda^{2}v_{i}$
     3. $\sigma_{i}=\sqrt{\lambda^{2}}=|\lambda|$
     4. file:./src/EigSvd.m
 *** 特征值的意义
-    1. file:./images/eigshowp_w1a.gif
+    1. [[./images/eigshowp_w1a.gif]]
     2. 特征值就是振动的谱
 *** 奇异值的意义
-    1. file:./images/svdshowp_w3a.gif
-    2. file:./images/svd32.jpg
+    1. [[./images/svdshowp_w3a.gif]]
+    2. [[./images/svd32.jpg]]
     3. 奇异值分解一般都用在潜在语义分析(LSA),信号压缩等
     4. 个人理解svd就是通过基变换，在新的基上可以进行数据压缩。
        - 基变换跟傅立叶变换，小波变换本质是一样的。
