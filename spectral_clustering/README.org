@@ -1,0 +1,23 @@
+#+Title: 谱聚类小工具
+#+Author: Chao Huang
+#+Email: huangchao07@baidu.com
+#+STARTUP: showall
+
+
+* 用法
+  1. 依赖apache-maven-3.2.5,在pom.xml所在目录执行如下代码，生成运行的jar包(target/spark-spectralcluster-1.0-SNAPSHOT.jar)
+     #+BEGIN_SRC sh
+     mvn package
+     #+END_SRC
+  2. 输入格式,可参考data/demo.input. 无向图，有边两个节点可任意顺序
+     #+BEGIN_SRC 
+     A \t B \t similarity_A_B
+     B \t C \t similarity_B_C
+     #+END_SRC
+  3. 运行bin/local.run.sh(本地)和bin/yarn.run.sh(集群)
+     - 设置spark-1.6的路径
+     - input和output改为自己的目录
+     - 最后一行的数字代表要聚类的个数
+  4. 输出格式： 输入的节点及聚类的簇id
+     
+

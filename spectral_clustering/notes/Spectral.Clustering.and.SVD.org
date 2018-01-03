@@ -1,0 +1,148 @@
+#+Title: Spectral Clustering and SVD
+#+Author: Chao Huang
+#+Email: huangchao07@baidu.com
+#+STARTUP: showall
+#+HTML_HEAD: <link rel="stylesheet" type="text/css" href="./css/worg.css" />
+
+* 谱聚类步骤
+** 论文
+   1. 计算相似度矩阵A.
+   2. D = degree of A
+   3. L_sym = I - D^(-1/2)AD^(-1/2)
+   4. L_{sym} 特征值分解
+   5. 最小k个特征值对应的特征向量进行kmeans
+
+** 实现
+   1. 计算相似度矩阵A.
+   2. D = degree of A
+   3. L_sym^{'} = I + D^(-1/2)AD^(-1/2)
+   4. L_sym^{'}奇异值分解，svd by spark
+   5. 最大k个特征值对应的特征向量进行kmeans
+
+* SVD
+** 为什么用SVD?
+   1. spark提供了分布式svd算法,可以方便的计算出大规模矩阵的最大k个奇异值
+   2. 方阵A的特征值为 \lambda ，那么-A的特征值为-\lambda
+      - 要求L_{sym}最小的k个特征值，就是求-L_{sym}的最大的k个特征值。
+   3. 方阵A的特征值为\lambda，那么A+kI的特征值为\lambda + k
+      - Av = \lambda v
+      - Av + kIv = \lambda v + kv
+      - (A+kI)v = (\lambda + k)v
+   4. L_{sym}的特征值取值范围是[0,2]
+      - L_{sym}^{'} = 2I - L_{sym} = I + D^(-1/2)AD^(-1/2)
+      - L_{sym}^{'}的最大特征值对应L_{sym}的最小特征值
+      - L_{sym}^{'}的特征值为非负，范围是[0, 2]
+   5. 对于一个半正定对称矩阵来说，奇异值是特征值。
+
+** 奇异值与特征值
+*** SVD分解
+    1. *Theorem*: For any *symmetric* n×n matrix B, that is B_{ij} = B_{ji} for all i and j, there exist n eigenvectors v1, . . . , vn, which are pairwise *orthogonal*, that is, v_{i}^{T}v_{j} = 0, for i != j. Moreover, B can be written as VDV^{T} , where V = [v1 . . . vn] is the n × n matrix with the *normalized* (v_{i}^{T}v_{i}=1) eigenvectors written column by column, D is an n × n matrix containing the eigenvalues corresponding to v1, . . . , vn on its diagonal, and V^{T} is just the transpose of V , that is, the normalized eigenvectors written row by row.
+    2. 任意矩阵A，A^{T}A是对称的
+       - $(A^{T}A)^{T}=A^{T}(A^{T})^{T}=A^{T}A$
+    3. 假设[v1 ... vr] 是A^{T}A 的归一化特征向量，对应着非零特征值为\lambda_1,...,\lambda_r
+    4. $AA^{T}Av_{i}=A\lambda_{i}v_{i}=\lambda_{i}Av_{i}$
+       - Av_{i}是AA^{T}的特征向量
+       - 特征值都是\lambda
+    5. Av_{i}的范式
+       - $(Av_{i})^{T}(Av_{i})=v_{i}^{T}A_{T}Av_{i}=v_{i}^{T}\lambda_{i}v_{i}=\lambda_{i}v_{i}^{T}v_{i}=\lambda_{i}$
+       - $\sigma_{i}=|Av_{i}|=\sqrt{\lambda_{i}}$
+    6. $u_{i}=\frac{Av_{i}}{\sigma_{i}}$
+    7. $u_{i}^{T}Av_{j}=(Av_{i}/\sigma_{i})^{T}Av_{j}=v_{i}^{T}A^{T}Av_{j}/\sigma_{i}=v_{i}^{T}v_{j}\lambda_{j}/\sigma_{i}$
+       - 当i==j时：$u_{i}^{T}Av_{j}=\sigma_{i}$
+       - 当i!=j时：$u_{i}^{T}Av_{j}=0$
+    8. $U^{T}AV=\Sigma$
+    9. $UU^{T}=I,V^{T}V=I$
+    10. $A=U\Sigma V^{T}$
+*** 胖瘦SVD
+    file:./images/svd2.jpg
+    file:./images/svd1.jpg
+*** 对称阵的SVD分解
+    1. $Av_{i}=\lambda v_{i}$
+    2. $A^{T}Av_{i}=AAv_{i}=A\lambda v_{i}=\lambda^{2}v_{i}$
+    3. $\sigma_{i}=\sqrt{\lambda^{2}}=|\lambda|$
+    4. file:./src/EigSvd.m
+*** 特征值的意义
+    1. file:./images/eigshowp_w1a.gif
+    2. 特征值就是振动的谱
+*** 奇异值的意义
+    1. file:./images/svdshowp_w3a.gif
+    2. file:./images/svd32.jpg
+    3. 奇异值分解一般都用在潜在语义分析(LSA),信号压缩等
+    4. 个人理解svd就是通过基变换，在新的基上可以进行数据压缩。
+       - 基变换跟傅立叶变换，小波变换本质是一样的。
+       - 取前k个最大奇异值就是降维
+
+** SVD spark实现
+   # http://blog.csdn.net/Yobadman/article/details/43238161
+   # https://github.com/endymecy/spark-ml-source-analysis/blob/master/降维/EVD/evd.md
+   # https://github.com/endymecy/spark-ml-source-analysis/blob/master/降维/SVD/svd.md
+   # https://github.com/apache/spark/blob/master/mllib/src/main/scala/org/apache/spark/mllib/linalg/EigenValueDecomposition.scala
+   1. 根据规模选择计算模式
+   #+BEGIN_SRC scala
+ val computeMode = mode match {
+      case "auto" =>
+        if (k > 5000) {
+          logWarning(s"computing svd with k=$k and n=$n, please check necessity")
+        }
+        if (n < 100 || (k > n / 2 && n <= 15000)) {
+          // 满足上述条件，首先计算方阵，然后本地计算特征值，避免数据传递
+          if (k < n / 3) {
+            SVDMode.LocalARPACK
+          } else {
+            SVDMode.LocalLAPACK
+          }
+        } else {
+          // 分布式实现
+          SVDMode.DistARPACK
+        }
+      case "local-svd" => SVDMode.LocalLAPACK
+      case "local-eigs" => SVDMode.LocalARPACK
+      case "dist-eigs" => SVDMode.DistARPACK
+ }
+   #+END_SRC
+   2. 特征值分解
+   #+BEGIN_SRC scala
+  val (sigmaSquares: BDV[Double], u: BDM[Double]) = computeMode match {
+    case SVDMode.LocalARPACK =>
+      // computeGramianMatrix就是A^{T}A
+      val G = computeGramianMatrix().toBreeze.asInstanceOf[BDM[Double]]
+      EigenValueDecomposition.symmetricEigs(v => G * v, n, k, tol, maxIter)
+    case SVDMode.LocalLAPACK =>
+      // breeze (v0.10) svd latent constraint, 7 * n * n + 4 * n < Int.MaxValue
+      val G = computeGramianMatrix().toBreeze.asInstanceOf[BDM[Double]]
+      val brzSvd.SVD(uFull: BDM[Double], sigmaSquaresFull: BDV[Double], _) = brzSvd(G)
+      (sigmaSquaresFull, uFull)
+    case SVDMode.DistARPACK =>
+      if (rows.getStorageLevel == StorageLevel.NONE) {
+        logWarning("The input data is not directly cached, which may hurt performance if its"
+          + " parent RDDs are also uncached.")
+      }
+      EigenValueDecomposition.symmetricEigs(multiplyGramianMatrixBy, n, k, tol, maxIter)
+  }
+
+  private[mllib] def multiplyGramianMatrixBy(v: BDV[Double]): BDV[Double] = {
+    val n = numCols().toInt
+    //v作为广播变量
+    val vbr = rows.context.broadcast(v)
+    rows.treeAggregate(BDV.zeros[Double](n))(
+      seqOp = (U, r) => {
+        val rBrz = r.toBreeze
+        val a = rBrz.dot(vbr.value)
+        rBrz match {
+          //计算y += x * a
+          case _: BDV[_] => brzAxpy(a, rBrz.asInstanceOf[BDV[Double]], U)
+          case _: BSV[_] => brzAxpy(a, rBrz.asInstanceOf[BSV[Double]], U)
+          case _ => throw new UnsupportedOperationException
+        }
+        U
+      }, combOp = (U1, U2) => U1 += U2)
+  }
+  #+END_SRC
+
+* Spectral Theory 
+** Reference
+   1. https://ocw.mit.edu/courses/mathematics/18-409-topics-in-theoretical-computer-science-an-algorithmists-toolkit-fall-2009/lecture-notes/MIT18_409F09_scribe4.pdf
+   2. https://ccjou.wordpress.com/2013/08/30/線性代數在圖論的應用-二：關聯矩陣/
+   3. http://fwn06.housing.rug.nl/mtns2014/wp-content/uploads/2014/09/DanielSpielman.pdf
+   4. https://classroom.udacity.com/courses/ud281/lessons/4214228796/concepts/42829986900923#
+   5. http://vfleaking.blog.163.com/blog/static/1748076342013112523651955/
