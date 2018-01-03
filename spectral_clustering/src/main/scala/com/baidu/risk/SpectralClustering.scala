@@ -37,37 +37,24 @@ object SpectralClustering {
                 val v = line.split("\t")
                 (v(0), v(1), v(2).toDouble)
             }).cache()
-      // node.saveAsTextFile("/app/ecom/aries/fengkong/huangchao07/spark-debug/sc.node")
       val uniq_id = node.flatMap(v=>List(v._1,v._2)).distinct.zipWithIndex.cache()// maybe if not cache, id changed?
-      // uniq_id.saveAsTextFile("/app/ecom/aries/fengkong/huangchao07/spark-debug/sc.uniqid")
       println("length=%d".format(uniq_id.collect.length))
         val data = node.map(v=>v._1->(v._2,v._3)) // (ID1,(ID2,w))
             .join(uniq_id) // (ID1, ((ID2,w), id1))
             .map(v=>v._2._1._1->(v._2._2,v._2._1._2)) // (ID2, (id1, w))
             .join(uniq_id) // (ID2, ((id1,w), id2))
             .map(v=>(v._2._1._1.toLong,v._2._2.toLong,v._2._1._2.toDouble))
-      // data.saveAsTextFile("/app/ecom/aries/fengkong/huangchao07/spark-debug/sc.data")
 
 
       val D = data.map(v=>(v._1.toLong,v._3.toDouble)).reduceByKey(_+_)
-      // D.saveAsTextFile("/app/ecom/aries/fengkong/huangchao07/spark-debug/sc.D")
       val I = D.map(v=>(v._1,v._1,1.0))
-      // I.saveAsTextFile("/app/ecom/aries/fengkong/huangchao07/spark-debug/sc.I")
       val half_inv_D = D.map(v=>(v._1,1.0/sqrt(v._2)))
-      // half_inv_D.saveAsTextFile("/app/ecom/aries/fengkong/huangchao07/spark-debug/sc.half_inv_D")
 
         // B=D*A*D ,if D is diag.then B[i,j]=A[i,j]*v[i]*v[j]
       val DAD = data.map(v=>(v._1.toLong,(v._2.toLong,v._3.toDouble))).join(half_inv_D).map{v=>(v._2._1._1,(v._1,v._2._1._2*v._2._2))}.join(half_inv_D).map{v=>(v._2._1._1,v._1,v._2._1._2*v._2._2)}
-      // DAD.saveAsTextFile("/app/ecom/aries/fengkong/huangchao07/spark-debug/sc.DAD")
 
         // create RowMatrix https://gist.github.com/vrilleup/9e0613175fab101ac7cd
       val inputData = DAD.union(I).map(v=>(v._1.toLong,v._2.toLong,v._3.toDouble))
-      println("save input Data")
-      //inputData.map(v=>(v._1,(v._2,v._3))).join(uniq_id.map(v=>(v._2.toLong, v._1))) //(id1, ((id2, w), ID1))
-      //  .map(v=>(v._2._1._1, (v._2._2, v._2._1._2))) // (id2, ID1, w)
-      //  .join(uniq_id.map(v=>(v._2.toLong, v._1))) // (id2, ((ID1, w), ID2))
-      //  .map(v=>(v._2._1._1, v._2._2, v._2._1._2))
-      //  .saveAsTextFile("/app/ecom/aries/fengkong/huangchao07/spark-debug/sc.input")
         // Number of columns
          val nCol = inputData.map(_._2).distinct().count().toInt
 
@@ -107,8 +94,6 @@ object SpectralClustering {
         val half_inv_D_list = half_inv_D.collect.map(v=>v._2).toList
         val points = sc.parallelize(svd.V.toArray.grouped(svd.V.numRows).toList.transpose.map(v=>Vectors.dense(v.toArray)).zipWithIndex)
 
-      // points.map(v=>(v._2.toLong, v._1)).join(uniq_id.map(v=>(v._2.toLong, v._1))).map(v=>(v._2._2, v._2._1)).saveAsTextFile("/app/ecom/aries/fengkong/huangchao07/spark-debug/sc.vector/")
-        //    sc.parallelize(s.toArray).saveAsTextFile("/app/ecom/aries/fengkong/huangchao07/spark-debug/sc.eigvalue")
         val model = new KMeans() 
             .setK(k)
             .setSeed(0L)
